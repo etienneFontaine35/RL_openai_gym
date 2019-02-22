@@ -18,67 +18,75 @@ import os
 def rad2degree(angle) :
     return angle * 180 / np.pi
 
+def deg2rad(angle) :
+    return angle * np.pi / 180
 
-def spaceNumber(rawState) :
-    x = rawState[0]
-    x_dot = rawState[1]
-    theta = rad2degree(rawState[2])
-    theta_dot = rad2degree(rawState[3])
 
-    if (x < -0.8) :
-        state = 0
-    elif (x < 0.8) :
-        state = 1
-    else :
-        state = 2
+def stateNumber(state, xBuckets, xDotBuckets, thetaBucket, thetaDotBucket) :
+    stateNum = 0
+    numStates = (xBuckets.size+1) * (xDotBuckets.size + 1) * (thetaBucket.size + 1) * (thetaDotBucket.size + 1)
+
+    for i, buck in enumerate([xBuckets, xDotBuckets, thetaBucket, thetaDotBucket]) :
+        numStates /= buck.size + 1
+        rank = 0
+        while (rank < buck.size) and (state[i] > buck[rank]) :
+            rank += 1
+        stateNum += rank*numStates
+
+    return int(stateNum)
+
+
+def epsGreedyPolicy(env, Qmatrix, eps, stateNum) :
+    if np.random.rand(1) < eps : # exploration
+        action = env.action_space.sample()
+    else : # exploitation
+        action = np.argmax(Qmatrix[stateNum])
     
-    if (x_dot < -0.5) :
-        state += 0;
-    elif (x_dot < 0.5) :
-        state += 3
-    else :
-        state += 6
-
-    if (theta < -6) :
-        state += 0
-    elif (theta < -1) :
-        state += 9
-    elif (theta < -0) :
-        state += 18
-    elif (theta < 1) :
-        state += 27
-    elif (theta < 6) :
-        state += 36
-    else :
-        state += 45
-
-    if (theta_dot < -50) :
-        state += 0
-    elif (theta_dot < 50) :
-        state += 54
-    else :
-        state += 108
-    
-    return state
+    return action
 
 
 # initialisation des entités
 cartEnv = gym.make('CartPole-v1')
 
-MIN_STATE = cartEnv.observation_space.low
-MAX_STATE = cartEnv.observation_space.high
-print("Lower bounderies : {}".format(MIN_STATE))
-print("Upper bounderies : {}".format(MAX_STATE))
+xBuckets = np.array([])
+xDotBuckets = np.array([]) # np.array([-0.5, 0.5])
+thetaBucket = np.array([deg2rad(-6), deg2rad(-1), deg2rad(0), deg2rad(1), deg2rad(6)])
+thetaDotBucket = np.array([deg2rad(-50), deg2rad(50)])
 
+NUM_STATES = (xBuckets.size+1) * (xDotBuckets.size + 1) * (thetaBucket.size + 1) * (thetaDotBucket.size + 1)
+print("The continuous space is discretized into {} discretized states\n".format(NUM_STATES))
 NUM_ACTIONS = cartEnv.action_space.n
+Qmatrix = np.zeros([NUM_STATES, NUM_ACTIONS])
+gamma = 1. # discount factor, what importance we give to future rewards
+alpha = 0.7 # learning rate, what importance we give to the new obtained values
+epsilon = 0.3 # probability to choose a random action (exploration) instead of taking a rewarding one (exploitation)
 
-sys.exit(42)
-for episode in range(1) :
-    cartEnv.reset()
+DISPLAY = False
+FREQ_LOG = 20
+
+
+for episode in range(1000) :
     done = False
+    totalReward = 0.
+    state = cartEnv.reset()
+    numTimeSteps = 0
+
     while done != True :
-        newState, reward, done, info = cartEnv.step(cartEnv.action_space.sample())
-        print("Etat : {}\nReward : {}\n".format(newState, reward))
-        # cartEnv.render()
-    print("Episode {}".format(episode))
+        stateNum = stateNumber(state, xBuckets, xDotBuckets, thetaBucket, thetaDotBucket)
+        action = epsGreedyPolicy(cartEnv, Qmatrix, epsilon, stateNum)
+        
+        if DISPLAY :
+            cartEnv.render()
+
+        newState, reward, done, info = cartEnv.step(action)
+        newStateNum = stateNumber(newState, xBuckets, xDotBuckets, thetaBucket, thetaDotBucket)
+        # print("State {}".format(newStateNum))
+
+        Qmatrix[stateNum, action] += alpha * (reward + gamma * np.max(Qmatrix[newStateNum]) - Qmatrix[stateNum, action])
+        totalReward += reward
+        numTimeSteps += 1
+        state = newState
+    if (episode % FREQ_LOG == 0) :
+        print("Episode {} : up for {} timesteps".format(episode, numTimeSteps))
+
     
