@@ -4,17 +4,8 @@ from time import sleep
 import math
 import sys
 import os
+import matplotlib.pyplot as plt
 
-
-# TODO: maintenant qu'on a la discrétisation de l'espace, il suffit juste de réappliquer la même
-#       méthode que pour le taxi, en rajoutant le eps-greedy algorithme ()
-
-# TODO: levier de variation :
-#           - eps-greedy, eps decaying greedy,
-#           - la taille de buckets
-#           - le nombre de variables que l'on considère
-#           - la valeur des paramètres : alpha, gamma
-#           
 
 def rad2degree(angle) :
     return angle * 180 / np.pi
@@ -50,52 +41,98 @@ def alphaDecay(episode, minAlpha):
     return max(minAlpha, min(0.5, 1.0 - np.log10((episode+1)/25.0)))
 
 
-# initialisation des entités
-cartEnv = gym.make('CartPole-v1')
+def simulate(alpha_param=None, epsilon_param=None, gamma_param=0.999, buckets_param=(1, 1, 6, 12,)) :
+    # initialisation des entités
+    cartEnv = gym.make('CartPole-v1')
 
-buckets = (1, 1, 6, 12,)
-Qmatrix = np.zeros(buckets + (cartEnv.action_space.n,))
-gamma = 0.999 # discount factor, what importance we give to future rewards
-minAlpha = 0.1 # minimal learning rate, what importance we give to the new obtained values
-minEpsilon = 0.1 # minimal probability to choose a random action (exploration) instead of taking a rewarding one (exploitation)
+    buckets = buckets_param
+    NUM_STATES = buckets[0] * buckets[1] * buckets[2] * buckets[3]
+    Qmatrix = np.zeros(buckets + (cartEnv.action_space.n,))
+    gamma = gamma_param # discount factor, what importance we give to future rewards
+    minAlpha = 0.1 # minimal learning rate, what importance we give to the new obtained values
+    minEpsilon = 0.1 # minimal probability to choose a random action (exploration) instead of taking a rewarding one (exploitation)
+    alpha = alpha_param
+    epsilon = epsilon_param
+    dynamicAlpha = (alpha == None)
+    dynamicEpsilon = (epsilon == None)
+    print("Continuous space discretized into {} states {}".format(NUM_STATES, buckets))
+    print("Parameters : alpha = {}, gamma = {}, epsilon = {}".format(alpha, gamma, epsilon))
 
-MAX_EPISODES = 1000
+    MAX_EPISODES = 5000
 
-DISPLAY = False
-FREQ_LOG = 1 # MAX_EPISODES // 10 + 1
+    DISPLAY = False
+    FREQ_LOG = -1
 
-episode = 0
+    episode = 0
+    consecutiveSuccess = 0
 
-while True :
-    done = False
-    totalReward = 0.
-    state = cartEnv.reset()
-    numTimeSteps = 0
-    epsilon = epsilonDecay(episode, minEpsilon)
-    alpha = alphaDecay(episode, minAlpha)
+    while True :
+        done = False
+        totalReward = 0.
+        state = cartEnv.reset()
+        numTimeSteps = 0
 
-    while done != True :
+        if dynamicEpsilon :
+            epsilon = epsilonDecay(episode, minEpsilon)
 
-        stateNum = discretize(state, cartEnv, buckets)
-        action = epsGreedyPolicy(cartEnv, Qmatrix, epsilon, stateNum)
+        if dynamicAlpha : 
+            alpha = alphaDecay(episode, minAlpha)
+
+        while done != True :
+            stateNum = discretize(state, cartEnv, buckets)
+            action = epsGreedyPolicy(cartEnv, Qmatrix, epsilon, stateNum)
+            
+            if DISPLAY :
+                cartEnv.render()
+
+            newState, reward, done, info = cartEnv.step(action)
+            newStateNum = discretize(newState, cartEnv, buckets)
+
+            Qmatrix[stateNum][action] += alpha * (reward + gamma * np.max(Qmatrix[newStateNum]) - Qmatrix[stateNum][action])
+            totalReward += reward
+            numTimeSteps += 1
+            state = newState
+
+        if FREQ_LOG != -1 and episode % FREQ_LOG == 0 :
+            print("Episode {} : up for {} timesteps".format(episode, numTimeSteps))
+
+        episode += 1
         
-        if DISPLAY :
-            cartEnv.render()
+        if numTimeSteps > 195 :
+            consecutiveSuccess += 1
+        else : 
+            consecutiveSuccess = 0
 
-        newState, reward, done, info = cartEnv.step(action)
-        newStateNum = discretize(newState, cartEnv, buckets)
+        if consecutiveSuccess > 100:
+            print("==> Problem solved after {} episodes !\n".format(episode))
+            break
+        
+        if episode > MAX_EPISODES - 1 :
+            print("=/=> Problem not solved, maximum number of episodes reached\n")
+            episode = -1
+            break
 
-        Qmatrix[stateNum][action] += alpha * (reward + gamma * np.max(Qmatrix[newStateNum]) - Qmatrix[stateNum][action])
-        totalReward += reward
-        numTimeSteps += 1
-        state = newState
+    return episode
 
-    if (episode % FREQ_LOG == 0) :
-        print("Episode {} : up for {} timesteps".format(episode, numTimeSteps))
+
+if __name__ == "__main__" :
+    buckets = (1, 1, 6, 12,)
+    alpha_list = np.linspace(0.1, 0.9, 9)
+    epsilon_list = np.linspace(0.1, 0.9, 9)
+    gamma_list = np.linspace(0.93, 1.2, 50)
     
-    episode += 1
+    gamma_resultats = np.zeros(len(gamma_list))
 
-    if episode > MAX_EPISODES - 1 :
-        break
+    for i, value in enumerate(gamma_list) :
+        gamma_resultats[i] = simulate(gamma_param=value)
+
+    plt.plot(gamma_list, gamma_resultats, '-b')
+    plt.ylabel('Episodes before success')
+    plt.xlabel('Gamma')
+    plt.show()
+
+# TODO: Il semble que les valeurs correctes de gamma sont entre 0.9520408163265307 et 1.0181632653061226
+#       il faut refaire la simulation proprement entre ces valeurs, en faisant une moyenne de résultats pour chaque point
+#       --> cela suffira pour le rendu, il y a deja suffisamment à dire, car il faut préciser que si alpha et epsilon sont fixes, alors il n'y a pas de convergence
 
     
