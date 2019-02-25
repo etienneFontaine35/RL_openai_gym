@@ -1,0 +1,5 @@
+https://www.kaggle.com/charel/learn-by-example-reinforcement-learning-with-gym
+
+https://medium.com/@tuzzer/cart-pole-balancing-with-q-learning-b54c6068d947
+http://pages.cs.wisc.edu/~finton/qcontroller.html
+https://ferdinand-muetsch.de/cartpole-with-qlearning-first-experiences-with-openai-gym.html
