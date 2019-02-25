@@ -124,11 +124,17 @@ if __name__ == "__main__" :
     gamma_resultats = np.zeros(len(gamma_list))
 
     for i, value in enumerate(gamma_list) :
-        gamma_resultats[i] = simulate(gamma_param=value)
+        average_result = 0
+        print("Calcul de {}".format(i))
+        for j in range(10) :
+            average_result += simulate(gamma_param=value)
+        average_result /= 10.
+        gamma_resultats[i] = average_result
 
     plt.plot(gamma_list, gamma_resultats, '-b')
-    plt.ylabel('Episodes before success')
+    plt.ylabel('Average number of episodes before success')
     plt.xlabel('Gamma')
+    plt.title('Influence of Gamma on learning speed (with alpha and epsilon decay)')
     plt.show()
 
 # TODO: Il semble que les valeurs correctes de gamma sont entre 0.9520408163265307 et 1.0181632653061226
