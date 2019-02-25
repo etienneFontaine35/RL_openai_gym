@@ -119,26 +119,45 @@ if __name__ == "__main__" :
     buckets = (1, 1, 6, 12,)
     alpha_list = np.linspace(0.1, 0.9, 9)
     epsilon_list = np.linspace(0.1, 0.9, 9)
-    gamma_list = np.linspace(0.93, 1.2, 50)
+    gamma_list = np.linspace(0.93, 1., 50)
     
     gamma_resultats = np.zeros(len(gamma_list))
+    gamma_probability_success = np.ones(len(gamma_list))
 
     for i, value in enumerate(gamma_list) :
         average_result = 0
+        probability = 1.
+        weight = 0
         print("Calcul de {}".format(i))
         for j in range(10) :
-            average_result += simulate(gamma_param=value)
-        average_result /= 10.
+            tmp = simulate(gamma_param=value)
+            if tmp != -1 :
+                weight += 1.
+                average_result += tmp
+            else :    
+                probability -= 0.1
+
+        weight = max(1, weight)
+        average_result /= weight
+        print("Prob = {}, Result = {}\n\n".format(probability, average_result))
+        gamma_probability_success[i] = probability
         gamma_resultats[i] = average_result
 
-    plt.plot(gamma_list, gamma_resultats, '-b')
+    print(gamma_resultats)
+    print("\n")
+    print(gamma_probability_success)
+
+    plt.plot(gamma_list, gamma_resultats, 'b-')
     plt.ylabel('Average number of episodes before success')
     plt.xlabel('Gamma')
     plt.title('Influence of Gamma on learning speed (with alpha and epsilon decay)')
     plt.show()
 
-# TODO: Il semble que les valeurs correctes de gamma sont entre 0.9520408163265307 et 1.0181632653061226
-#       il faut refaire la simulation proprement entre ces valeurs, en faisant une moyenne de résultats pour chaque point
-#       --> cela suffira pour le rendu, il y a deja suffisamment à dire, car il faut préciser que si alpha et epsilon sont fixes, alors il n'y a pas de convergence
+    plt.plot(gamma_list, gamma_probability_success, 'r-')
+    plt.ylabel('Success rate')
+    plt.xlabel('Gamma')
+    plt.title('Probability to achieve the task according to Gamma (over 10 trials)')
+    plt.show()
+
 
     
